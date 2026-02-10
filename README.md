@@ -1,1 +1,2 @@
 # Central-African-Republic-Time-Series-Analysis
+This is a collaboration project for an upper division statistics course on time series analysis at UC Davis. It studies long-run economic trends in the country of Central African Republic over the course of 50+ years, both determining relationships between variables and forecasting future trends. We built and analyzed ARIMA models and cross-correlation functions to reach our interpretations.
