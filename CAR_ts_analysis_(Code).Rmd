@@ -1,0 +1,392 @@
+---
+title: "Central African Republic Time Series Analysis (Code)"
+author: "Miguel Flores & Andrew Huang"
+date: "2025-12-07"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,      
+  results = "hide", 
+  message = FALSE,  
+  warning = FALSE,
+  fig.show = "hide"
+)
+```
+
+```{r, results= 'hide'}
+# Load in data
+
+load("/Users/miguelflores/Downloads/Data_File_finalproject.Rdata")
+```
+
+```{r, results= 'hide'}
+# Load in libraries
+
+library(forecast)
+library(astsa)
+library(lmtest)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+```
+
+```{r, results= 'hide'}
+# Store data in a data frame
+df <- as.data.frame(finalPro_data)
+```
+
+```{r, results= 'hide'}
+# Retrieve summary statistics
+
+finalPro_data %>%
+  filter(Country == "Central African Republic") %>%
+  summarise(
+    Mean = c(mean(GDP, na.rm = TRUE), mean(Growth, na.rm = TRUE), 
+             mean(CPI, na.rm = TRUE), mean(Imports, na.rm = TRUE), 
+             mean(Exports, na.rm = TRUE), mean(Population, na.rm = TRUE)),
+    Median = c(median(GDP, na.rm = TRUE), median(Growth, na.rm = TRUE), 
+               median(CPI, na.rm = TRUE), median(Imports, na.rm = TRUE), 
+               median(Exports, na.rm = TRUE), median(Population, na.rm = TRUE)),
+    SD = c(sd(GDP, na.rm = TRUE), sd(Growth, na.rm = TRUE), 
+           sd(CPI, na.rm = TRUE), sd(Imports, na.rm = TRUE), 
+           sd(Exports, na.rm = TRUE), sd(Population, na.rm = TRUE)),
+    Min = c(min(GDP, na.rm = TRUE), min(Growth, na.rm = TRUE), 
+            min(CPI, na.rm = TRUE), min(Imports, na.rm = TRUE), 
+            min(Exports, na.rm = TRUE), min(Population, na.rm = TRUE)),
+    Max = c(max(GDP, na.rm = TRUE), max(Growth, na.rm = TRUE), 
+            max(CPI, na.rm = TRUE), max(Imports, na.rm = TRUE), 
+            max(Exports, na.rm = TRUE), max(Population, na.rm = TRUE))
+  ) %>%
+  mutate(Variable = c("GDP", "Growth", "CPI", "Imports", "Exports", "Population")) %>%
+  select(Variable, Mean, Median, SD, Min, Max)
+```
+
+```{r, results= 'hide'}
+# Plot the GDP, Exports, and Population Over Time
+p1 <- ggplot(df, aes(Year, GDP)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "GDP Over Time") +
+  theme_minimal()
+
+p2 <- ggplot(df, aes(Year, Population)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Population Over Time") +
+  theme_minimal()
+
+p3 <- ggplot(df, aes(Year, Exports)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Exports Over Time") +
+  theme_minimal()
+
+grid.arrange(p1, p2, p3)
+```
+
+```{r, results= 'hide'}
+# Transform GDP data
+gdp_transformed <- log(df$GDP)
+
+# Plot the ACF & PACF of raw and transformed GDP data
+
+par(
+  mfrow = c(2, 2),
+  mar = c(4, 4, 3, 1),   
+  cex = 1
+)
+acf(df$GDP, lag.max = 20, 
+    main = "GDP ACF")
+acf(gdp_transformed, lag.max =20,
+    main = "Log GDP ACF")
+pacf(df$GDP, lag.max = 20,
+      main = "GDP PACF")
+pacf(gdp_transformed, lag.max =20,
+     main = "Log GDP PACF")
+
+axis(1,at = 0:20, labels = 0:20)
+```
+
+```{r, results= 'hide'}
+# Transform exports data
+exp_transformed <- log(df$Exports)
+
+# Plot the ACF & PACF of raw and transformed exports data
+par(
+  mfrow = c(2, 2),
+  mar = c(4, 4, 3, 1),  
+  cex = 1          
+)
+acf(df$Exports, lag.max = 20,
+    main = "Export ACF")
+acf(exp_transformed, lag.max =20,
+    main = "Log Export ACF")
+pacf(df$Exports, lag.max = 20,
+     main = "Export PACF")
+pacf(exp_transformed, lag.max =20,
+     main = "Log Export PACF")
+axis(1, at = 0:20, labels = 0:20) 
+```
+
+```{r, results= 'hide'}
+# Transform population data
+pop_transformed <- log(df$Population)
+
+# Plot the ACF & PACF of raw and transformed population data
+par(
+  mfrow = c(2, 2),
+  mar = c(4, 4, 3, 1),
+  cex = 0.8            
+)
+
+acf(df$Population, lag.max = 20,
+    main = "Population ACF")
+
+acf(pop_transformed, lag.max = 20,
+    main = "Log Population ACF")
+
+pacf(df$Population, lag.max = 20,
+     main = "Population PACF")
+
+pacf(pop_transformed, lag.max = 20,
+     main = "Log Population PACF")
+```
+
+GDP
+```{r, results= 'hide'}
+# Fit Arima models on transformed GDP data
+m_ar1  <- Arima(gdp_transformed, order=c(1,1,0))  
+m_ma1  <- Arima(gdp_transformed, order=c(0,1,1))
+m_arma <- Arima(gdp_transformed, order=c(1,1,1))
+
+# Find coefficients/p-values
+coeftest(m_ar1)
+coeftest(m_ma1)
+coeftest(m_arma)
+
+# Gives AIC/BIC values
+summary(m_ar1)
+summary(m_ma1)
+summary(m_arma)
+```
+Fitted ARIMA models:
+$\Delta y_t = 0.1642\Delta y_{t-1} + \varepsilon_t$
+$\Delta y_t = \varepsilon_t + 0.1267\varepsilon_{t-1}$
+$\Delta y_t = 0.978521\Delta y_{t-1} + \varepsilon_t - 0.913256\varepsilon_{t-1}$
+
+```{r, results= 'hide'}
+# ACF & PACF of differenced GDP data
+par(
+  mfrow = c(2, 2),
+  mar = c(4, 4, 3, 1),  
+  cex = 1
+)
+acf(diff(gdp_transformed), lag.max = 20,
+    main = "Differenced log GDP ACF"
+    )
+pacf(diff(gdp_transformed), lag.max = 20,
+     main = "Differenced log GDP PACF"
+     )
+```
+
+```{r, results= 'hide'}
+# Sarima decides whether the model is a good fit through various tests
+sarima(gdp_transformed, 1, 1, 1, no.constant = TRUE)
+```
+
+```{r, results= 'hide'}
+# Plot the forecast for log(GDP) data
+gdp_ts <- ts(log(df$GDP), start = 1960 , frequency = 1)
+
+arima111 <- arima(gdp_ts, order = c(1,1,1))
+f1 <- forecast(arima111)
+f1
+
+# Plot the forecast for raw GDP data
+raw_gdp_ts <- ts(df$GDP, start = 1960 , frequency = 1)
+
+raw_arima111 <- arima(raw_gdp_ts, order = c(1,1,1))
+raw_f1 <- forecast(raw_arima111)
+raw_f1
+
+p1 <- autoplot(forecast(arima111)) +
+  scale_x_continuous(breaks = pretty(time(gdp_ts), n = 10)) +
+  labs(title = "ARIMA(1,1,1) – Transformed GDP")
+
+p2 <- autoplot(forecast(raw_arima111)) +
+  scale_x_continuous(breaks = pretty(time(raw_gdp_ts), n = 10)) +
+  labs(title = "ARIMA(1,1,1) – Raw GDP")
+grid.arrange(p1, p2)
+```
+
+Exports
+```{r, results= 'hide'}
+# Fit Arima models on transformed exports data
+e_ar1  <- Arima(exp_transformed, order=c(2,1,0))
+e_ma1  <- Arima(exp_transformed, order=c(0,1,1))
+e_arma <- Arima(exp_transformed, order=c(2,1,1))
+
+# Find coefficients/p-values
+coeftest(e_ar1)
+coeftest(e_ma1)
+coeftest(e_arma)
+
+# Gives AIC/BIC values
+summary(e_ar1)
+summary(e_ma1)
+summary(e_arma)
+```
+Fitted ARIMA models:
+$\Delta y_t = -0.2974\Delta y_{t-1} + \varepsilon_t$
+$\Delta y_t = \varepsilon_t - 0.3473\varepsilon_{t-1}$
+$\Delta y_t = -0.0511\Delta y_{t-1} + \varepsilon_t - 0.3094\varepsilon_{t-1}$
+
+```{r, results= 'hide'}
+# ACF & PACF of differenced exports data
+
+par(
+  mfrow = c(2, 2),
+  mar = c(4, 4, 3, 1),   # smaller margins
+  cex = 1  )        # scale text down
+
+acf(diff(exp_transformed), lag.max = 20,
+    main = "Differenced log export ACF")
+
+pacf(diff(exp_transformed), lag.max = 20,
+     main = "Differenced log export PACF")
+axis(1, at = 0:20)
+```
+
+
+```{r, results= 'hide'}
+# Sarima decides whether the model is a good fit through various tests
+sarima(exp_transformed, 2, 1, 0, no.constant = TRUE)
+```
+
+```{r, results= 'hide'}
+# Plot the forecast for log(exports) data
+exp_ts <- ts(log(df$Exports), start = 1960 , frequency = 1)
+
+e_arima210 <- arima(exp_ts, order = c(2,1,0))
+f2 <- forecast(e_arima210)
+f2
+
+# Plot the forecast for raw exports data
+raw_exp_ts <- ts(df$Exports, start = 1960 , frequency = 1)
+
+raw_e_arima210 <- arima(raw_exp_ts, order = c(2,1,0))
+raw_f2 <- forecast(raw_e_arima210)
+raw_f2
+
+p3 <- autoplot(forecast(e_arima210)) +
+  scale_x_continuous(breaks = pretty(time(exp_ts), n = 10)) +
+  labs(title = "ARIMA(2,1,0) – Transformed Exports")
+
+p4 <- autoplot(forecast(raw_e_arima210)) +
+  scale_x_continuous(breaks = pretty(time(raw_exp_ts), n = 10)) +
+  labs(title = "ARIMA(2,1,0) – Raw Exports")
+grid.arrange(p3, p4)
+```
+
+Population
+```{r, results= 'hide'}
+# Fit Arima models on transformed population data
+p_ar1_pop <- Arima(pop_transformed, order=c(1,1,0))   # AR(1) on levels → differencing done by d=1
+p_ma1_pop <- Arima(pop_transformed, order=c(0,1,1))   # MA(1)
+diff_pop_transformed <-  diff(pop_transformed)
+p_arma_pop <- Arima(diff_pop_transformed, order=c(1,0,1))   # ARMA(1,1,1)
+
+# Find coefficients/p-values
+coeftest(p_ar1_pop)
+coeftest(p_ma1_pop)
+coeftest(p_arma_pop)
+
+# Gives AIC/BIC values
+summary(p_ar1_pop)
+summary(p_ma1_pop)
+summary(p_arma_pop)
+```
+Fitted ARIMA Models:
+$\Delta y_t = 0.9954\Delta y_{t-1} + \varepsilon_t$
+$\Delta y_t = \varepsilon_t + 0.9999\varepsilon_{t-1}$
+$\Delta y_t = 0.0181 + 0.9568\Delta y_{t-1} + \varepsilon_t + 0.9999\varepsilon_{t-1}$
+
+```{r, results= 'hide'}
+# ACF & PACF of differenced exports data
+par(
+  mfrow = c(2,2),
+  mar = c(4,4,3,1),
+  cex = 1)
+
+acf(diff(pop_transformed), lag.max = 20,
+    main = "Differenced log population ACF")
+
+pacf(diff(pop_transformed), lag.max = 20,
+     main = "Differenced log population PACF")
+axis(1, at = 0:20)
+```
+
+```{r, results= 'hide'}
+# Sarima decides whether the model is a good fit through various tests
+sarima(diff_pop_transformed, 1, 0, 1)
+```
+
+```{r, results= 'hide'}
+# Second Order Difference
+
+# Fit new Arima models on transformed population data
+p_ar2_pop <- Arima(pop_transformed, order=c(1,2,0))
+p_ma2_pop <- Arima(pop_transformed, order=c(0,2,1))
+p_arma2_pop <- Arima(pop_transformed, order=c(1,2,1))
+
+# Find coefficients/p-values
+coeftest(p_ar2_pop)
+coeftest(p_ma2_pop)
+coeftest(p_arma2_pop)
+
+# Gives AIC/BIC values
+summary(p_ar2_pop)
+summary(p_ma2_pop)
+summary(p_arma2_pop)
+```
+New Fitted ARIMA Models:
+$\Delta^{2} y_t = 0.8932\Delta^{2} y_{t-1} + \varepsilon_t$
+$\Delta^{2} y_t = \varepsilon_t + 0.9994\varepsilon_{t-1}$
+$\Delta^{2} y_t = 0.8534\Delta^{2} y_{t-1} + \varepsilon_t + 0.8062\varepsilon_{t-1}$
+
+```{r, results= 'hide'}
+# Sarima again decides whether the model is a good fit through various tests
+sarima(pop_transformed, 1, 2, 1)
+```
+
+```{r, results= 'hide'}
+pop_ts <- ts(log(df$Population), start = 1960 , frequency = 1)
+
+arima121 <- arima(pop_ts, order = c(1,2,1))
+
+f3 <- forecast(arima121)
+f3
+
+raw_pop_ts <- ts(df$Population, start = 1960 , frequency = 1)
+
+raw_arima121 <- arima(raw_pop_ts, order = c(1,2,1))
+raw_f3 <- forecast(raw_arima121)
+raw_f3
+
+p5 <- autoplot(forecast(arima121)) +
+  scale_x_continuous(breaks = pretty(time(pop_ts), n = 10)) +
+  labs(title = "ARIMA(1,2,1) – Transformed Population")
+
+p6 <- autoplot(forecast(raw_arima121)) +
+  scale_x_continuous(breaks = pretty(time(raw_pop_ts), n = 10)) +
+  labs(title = "ARIMA(1,2,1) – Raw Population")
+
+grid.arrange(p5, p6)
+```
+
+Cross-Correlation
+```{r, results= 'hide'}
+ccf(residuals(arima111), residuals(e_arima210), lag.max = 20, 
+    main = "Export(ARMA(1,1,1) and GDP(ARMA(2,1,0)) Cross Correlation Function")
+```
